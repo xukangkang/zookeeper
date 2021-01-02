@@ -242,6 +242,9 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                  * one is waiting (or a batch of commits if maxCommitBatchSize
                  * is set).
                  */
+                // 如果maxReadBatchSize为负数，则有commit消息的时候（!pendingRequests.isEmpty() && !committedRequests.isEmpty() == true）
+                // 就会立刻跳出下面的while循环，如果maxReadBatchSize>=0，则本次while循环会批量处理maxReadBatchSize个读请求（前提是有那么多读请求）之后，
+                // 再去判断有没有commit请求
                 Request request;
                 int readsProcessed = 0;
                 while (!stopped
@@ -249,6 +252,8 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                        && (maxReadBatchSize < 0 || readsProcessed <= maxReadBatchSize)
                        && (request = queuedRequests.poll()) != null) {
                     requestsToProcess--;
+                    // 对于一个session，如果pendingRequests.containsKey(request.sessionId) == true，则一定有session的写请求在Deque中等待执行，
+                    // 此时session的读请求也需要放到自己的Deque中进行排队（Deque位于pendingRequest），TODO 读请求为什么要排队？为了不影响其它会话的请求执行？
                     if (needCommit(request) || pendingRequests.containsKey(request.sessionId)) {
                         // Add request to pending
                         Deque<Request> requests = pendingRequests.computeIfAbsent(request.sessionId, sid -> new ArrayDeque<>());
@@ -280,7 +285,8 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                     }
                 }
                 ServerMetrics.getMetrics().READS_ISSUED_IN_COMMIT_PROC.add(readsProcessed);
-
+                // 上面while循环退出有可能是因为批量读操作数量达到了上限，
+                // 但是此时也可能没有commit请求，所以需要再次判断commitIsWaiting
                 if (!commitIsWaiting) {
                     commitIsWaiting = !committedRequests.isEmpty();
                 }
@@ -292,6 +298,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                     /*
                      * Drain outstanding reads
                      */
+                    // TODO 等待所有的读请求都执行完，why？
                     waitForEmptyPool();
 
                     if (stopped) {
@@ -378,6 +385,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                         commitsProcessed++;
 
                         // Process the write inline.
+                        // 将写请求应用到DataTree上
                         processWrite(request);
 
                         commitIsWaiting = !committedRequests.isEmpty();
@@ -390,6 +398,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                      * Process following reads if any, remove session queue(s) if
                      * empty.
                      */
+                    // 将各个session对应的sessionQueue中剩余的读请求执行完
                     readsProcessed = 0;
                     for (Long sessionId : queuesToDrain) {
                         Deque<Request> sessionQueue = pendingRequests.get(sessionId);
@@ -403,6 +412,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                         readsProcessed += readsAfterWrite;
 
                         // Remove empty queues
+                        // 如果sessionQueue为空，则将其从pendingRequests删除（不删除第一个while循环会认为这个session有写请求在执行）
                         if (sessionQueue.isEmpty()) {
                             pendingRequests.remove(sessionId);
                         }

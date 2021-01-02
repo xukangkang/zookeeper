@@ -349,7 +349,7 @@ public class Learner {
         }
 
         self.authLearner.authenticate(sock, hostname);
-
+        // 创建接收leader数据的inputArchive
         leaderIs = BinaryInputArchive.getArchive(new BufferedInputStream(sock.getInputStream()));
         bufferedOutput = new BufferedOutputStream(sock.getOutputStream());
         leaderOs = BinaryOutputArchive.getArchive(bufferedOutput);

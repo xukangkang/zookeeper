@@ -264,7 +264,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 }
                 InetAddress ia = sc.socket().getInetAddress();
                 int cnxncount = getClientCnxnCount(ia);
-
+                // 限制同一个客户端的最大的请求连接数量
                 if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns) {
                     throw new IOException("Too many connections from " + ia + " - max is " + maxClientCnxns);
                 }
@@ -612,6 +612,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
     private volatile boolean stopped = true;
     private ConnectionExpirerThread expirerThread;
+    // 处理客户端连接请求线程
     private AcceptThread acceptThread;
     private final Set<SelectorThread> selectorThreads = new HashSet<SelectorThread>();
 
@@ -634,6 +635,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
         int numCores = Runtime.getRuntime().availableProcessors();
         // 32 cores sweet spot seems to be 4 selector threads
+        // 得到用于selector的线程数量
         numSelectorThreads = Integer.getInteger(
             ZOOKEEPER_NIO_NUM_SELECTOR_THREADS,
             Math.max((int) Math.sqrt((float) numCores / 2), 1));

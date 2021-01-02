@@ -70,6 +70,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         if (sock == null) {
             throw new IOException("Socket is null!");
         }
+        // 读数据
         if (sockKey.isReadable()) {
             int rc = sock.read(incomingBuffer);
             if (rc < 0) {
@@ -102,9 +103,10 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 }
             }
         }
+        // 写数据
         if (sockKey.isWritable()) {
+            // 从outgoingQueue查找一个可以发送的packet
             Packet p = findSendablePacket(outgoingQueue, sendThread.tunnelAuthInProgress());
-
             if (p != null) {
                 updateLastSend();
                 // If we already started writing p, p.bb will already exist
@@ -116,19 +118,24 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     }
                     p.createBB();
                 }
+                // 写数据到服务端
                 sock.write(p.bb);
+                // 如果p.bb没有可写数据,则将p.bb从outgoingQueue中删除
                 if (!p.bb.hasRemaining()) {
                     sentCount.getAndIncrement();
+                    // 从outgoingQueue中移除p
                     outgoingQueue.removeFirstOccurrence(p);
                     if (p.requestHeader != null
                         && p.requestHeader.getType() != OpCode.ping
                         && p.requestHeader.getType() != OpCode.auth) {
                         synchronized (pendingQueue) {
+                            // 将发送的packet放到pendingQueue中
                             pendingQueue.add(p);
                         }
                     }
                 }
             }
+            // 如果outgoingQueue为空，则取消write事件的监听
             if (outgoingQueue.isEmpty()) {
                 // No more packets to send: turn off write interest flag.
                 // Will be turned on later by a later call to enableWrite(),
@@ -159,6 +166,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
             return null;
         }
         // If we've already starting sending the first packet, we better finish
+        // 找到一个未发送完成的packet,将其完成发送
         if (outgoingQueue.getFirst().bb != null || !tunneledAuthInProgres) {
             return outgoingQueue.getFirst();
         }
@@ -347,10 +355,12 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     sendThread.primeConnection();
                 }
             } else if ((k.readyOps() & (SelectionKey.OP_READ | SelectionKey.OP_WRITE)) != 0) {
+                // 处理Read和Write事件
                 doIO(pendingQueue, cnxn);
             }
         }
         if (sendThread.getZkState().isConnected()) {
+            // 如果还有可发送的packet，则继续监听写事件
             if (findSendablePacket(outgoingQueue, sendThread.tunnelAuthInProgress()) != null) {
                 enableWrite();
             }

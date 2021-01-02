@@ -685,6 +685,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         }
         validatePath(path, request.sessionId);
         try {
+            // 根据path获取Record
             if (getRecordForPath(path) != null) {
                 throw new KeeperException.NodeExistsException(path);
             }

@@ -602,6 +602,7 @@ public class LearnerHandler extends ZooKeeperThread {
             bufferedOutput.flush();
 
             // Start thread that blast packets in the queue to learner
+            // 开启一个线程,向leaner发送packet
             startSendingPackets();
 
             /*

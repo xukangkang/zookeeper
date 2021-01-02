@@ -122,6 +122,8 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
      * whenever either condition is hit. If only one or the other is
      * set, flush only when the relevant condition is hit.
      */
+    // 如果设置了flushDelay参数，则判断flushDelay是否大于（当前时间 - 上次flushTime）的差值，如果是，则返回true，
+    // 否则判断toFlush.size是否大于maxBatchSize配置
     private boolean shouldFlush() {
         long flushDelay = zks.getFlushDelay();
         long maxBatchSize = zks.getMaxBatchSize();
@@ -178,6 +180,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                 ServerMetrics.getMetrics().SYNC_PROCESSOR_QUEUE_TIME.add(startProcessTime - si.syncQueueStartTime);
 
                 // track the number of records written to the log
+                // zks.getZKDatabase().append(si) 方法将日志（redo）写入文件，但是不立即刷新到磁盘（如果立即刷新到磁盘，则性能较差），而是通过下面的flush()批量刷新到磁盘
                 if (!si.isThrottled() && zks.getZKDatabase().append(si)) {
                     if (shouldSnapshot()) {
                         resetSnapshotStats();
