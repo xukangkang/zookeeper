@@ -312,6 +312,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements RequestP
                      */
                     Set<Long> queuesToDrain = new HashSet<>();
                     long startWriteTime = Time.currentElapsedTime();
+                    // 监控使用
                     int commitsProcessed = 0;
                     while (commitIsWaiting && !stopped && commitsToProcess > 0) {
 
